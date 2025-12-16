@@ -61,13 +61,38 @@ jobs:
       run: |
         cp -r ${{ github.workspace }}/libs ${{ github.workspace }}/V2rayNG/app
 
-    - name: Download libv2ray
-      uses: robinraju/release-downloader@v1.12
+    # ==== 删除下载 libv2ray 步骤 ====
+    # 之前的 robinraju/release-downloader 出错，这里直接用本地 libs
+
+    - name: Restore cached libhysteria2
+      id: cache-libhysteria2-restore
+      uses: actions/cache/restore@v4
       with:
-        repository: '2dust/AndroidLibXrayLite'
-        tag: 'latest'
-        fileName: 'libv2ray.aar'
-        out-file-path: V2rayNG/app/libs/
+        path: ${{ github.workspace }}/hysteria/libs
+        key: libhysteria2-${{ runner.os }}-${{ env.NDK_HOME }}-${{ hashFiles('.git/modules/hysteria/HEAD') }}-${{ hashFiles('libhysteria2.sh') }}
+
+    - name: Setup Golang
+      if: steps.cache-libhysteria2-restore.outputs.cache-hit != 'true'
+      uses: actions/setup-go@v5.4.0
+      with:
+        go-version-file: 'AndroidLibXrayLite/go.mod'
+        cache: false
+
+    - name: Build libhysteria2
+      if: steps.cache-libhysteria2-restore.outputs.cache-hit != 'true'
+      run: |
+        bash libhysteria2.sh
+
+    - name: Save libhysteria2
+      if: steps.cache-libhysteria2-restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ github.workspace }}/hysteria/libs
+        key: libhysteria2-${{ runner.os }}-${{ env.NDK_HOME }}-${{ hashFiles('.git/modules/hysteria/HEAD') }}-${{ hashFiles('libhysteria2.sh') }}
+
+    - name: Copy libhysteria2
+      run: |
+        cp -r ${{ github.workspace }}/hysteria/libs ${{ github.workspace }}/V2rayNG/app
 
     - name: Setup Java
       uses: actions/setup-java@v4.7.0
@@ -75,7 +100,7 @@ jobs:
         distribution: 'temurin'
         java-version: '21'
 
-    - name: Build Debug APK
+    - name: Build APK (Debug)
       run: |
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
